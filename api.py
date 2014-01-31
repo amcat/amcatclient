@@ -35,6 +35,14 @@ log = logging.getLogger(__name__)
 articleset_url = 'projects/{project}/sets/'
 article_url = articleset_url + '{articleset}/articles/'
 
+class APIError(EnvironmentError):
+    def __init__(self, http_status, message, url, response, description=None, details=None):
+        super(APIError, self).__init__(http_status, message, url)
+        self.http_status = http_status
+        self.url = url
+        self.response = response
+        self.description = description
+        self.details = details
 
 class AmcatAPI(object):
     def __init__(self, host, user, password):
@@ -54,7 +62,16 @@ class AmcatAPI(object):
         r = requests.request(method, url, auth=(self.user, self.password), data=data, params=options, headers=headers)
         log.info("HTTP {method} {url} (options={options!r}, data={data!r}) -> {r.status_code}".format(**locals()))
         if r.status_code != expected_status:
-            raise Exception("Request {url!r} returned code {r.status_code}, expected {expected_status}:\n{r.text}".format(**locals()))
+            try:
+                err = r.json()
+            except:
+                # couldn't get json, so raise generic error
+                msg = "Request {url!r} returned code {r.status_code}, expected {expected_status}:\n{r.text}".format(**locals())
+                raise APIError(r.status_code, msg, url, r.text)
+            else:
+                raise APIError(err["status"],  err['message'], url, err, err["description"], err["details"])
+
+
         if format == 'json':
             try:
                 return r.json()

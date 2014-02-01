@@ -69,6 +69,9 @@ class AmcatAPI(object):
                 msg = "Request {url!r} returned code {r.status_code}, expected {expected_status}:\n{r.text}".format(**locals())
                 raise APIError(r.status_code, msg, url, r.text)
             else:
+                if not all(x in err for x in ("status", "message", "description", "details")):
+                    msg = "Request {url!r} returned code {r.status_code}, expected {expected_status}:\n{r.text}".format(**locals())
+                    raise APIError(r.status_code, msg, url, r.text)    
                 raise APIError(err["status"],  err['message'], url, err, err["description"], err["details"])
 
 

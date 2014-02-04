@@ -32,7 +32,7 @@ import logging
 log = logging.getLogger(__name__)
 
 # URLs copied to ensure independence of module
-articleset_url = 'projects/{project}/sets/'
+articleset_url = 'projects/{project}/articlesets/'
 article_url = articleset_url + '{articleset}/articles/'
 
 class APIError(EnvironmentError):

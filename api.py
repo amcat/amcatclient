@@ -29,12 +29,17 @@ in non-GPL programs.
 
 import requests, json
 import logging
+import os, os.path, csv
+
 log = logging.getLogger(__name__)
 
-# URLs copied to ensure independence of module
-articleset_url = 'projects/{project}/articlesets/'
-article_url = articleset_url + '{articleset}/articles/'
+class URL:
+    articleset = 'projects/{project}/articlesets/'
+    article = articleset + '{articleset}/articles/'
+    get_token = 'get_token'
 
+AUTH_FILE = "~/.amcatauth"
+    
 class APIError(EnvironmentError):
     def __init__(self, http_status, message, url, response, description=None, details=None):
         super(APIError, self).__init__(http_status, message, url)
@@ -44,12 +49,74 @@ class APIError(EnvironmentError):
         self.description = description
         self.details = details
 
+def check(response, expected_status=200, url=None, json=True):
+    """
+    Check whether the status code of the response equals expected_status and raise an APIError otherwise.
+    @param url: the url that was used to get the response (for error messages). Defaults to response.url
+    @param json: if True, return r.json(), otherwise return r.text
+    """
+    if response.status_code != expected_status:
+        if url is None: url = response.url
+            
+        try:
+            err = response.json()
+        except:
+            # couldn't get json, so raise generic error
+            msg = ("Request {url!r} returned code {response.status_code}, expected {expected_status}:\n{response.text}"
+                   .format(**locals()))
+            raise APIError(response.status_code, msg, url, response.text)
+        else:
+            if not all(x in err for x in ("status", "message", "description", "details")):
+                msg = ("Request {url!r} returned code {response.status_code}, expected {expected_status}:\n{response.text}"
+                       .format(**locals()))
+                raise APIError(response.status_code, msg, url, response.text)    
+            raise APIError(err["status"],  err['message'], url, err, err["description"], err["details"])
+    if json:
+        try:
+            return response.json()
+        except:
+            raise Exception("Cannot decode json; text={response.text!r}".format(**locals()))
+    else:
+        return response.text
+        
 class AmcatAPI(object):
-    def __init__(self, host, user, password):
+    def __init__(self, host, user=None, password=None, token=None):
         self.host = host
-        self.user = user
-        self.password = password
+        if token is None: token = self.get_token(user, password)
+        self.token = token
 
+    def _get_auth(self, user=None, password=None):
+        """
+        Get the authentication info for the current user, from
+        1) a ~/.amcatauth file, which should be a csv containing host, username, password entries
+        2) the AMCAT_USER (or USER) and AMCAT_PASSWORD environment variables
+        """
+        fn = os.path.expanduser(AUTH_FILE)
+        if os.path.exists(fn):
+            for i, line in enumerate(csv.reader(open(fn))):
+                if len(line) != 3:
+                    log.warn("Cannot parse line {i} in {fn}".format(**locals()))
+                    continue
+                hostname, username, pwd = line
+                if hostname in ("", "*", self.host) and (user is None or username == user):
+                    return (username, pwd)
+        if user is None:
+            user = os.environ.get("AMCAT_USER", os.environ.get("USER"))
+        if password is None:
+            password = os.environ.get("AMCAT_PASSWORD")
+        if user is None or password is None:
+            raise Exception("No authentication info for {user}@{self.host} from {fn} or AMCAT_USER / AMCAT_PASSWORD variables"
+                            .format(**locals()))
+        return user, password
+                           
+                        
+    def get_token(self, user=None, password=None):
+        if user is None or password is None:
+            user, password = self._get_auth()
+        url = "{self.host}/api/v4/{url}".format(url=URL.get_token, **locals())
+        r = requests.post(url, data={'username' : user, 'password' : password})
+        return check(r)['token']
+        
     def request(self, url, method="get", format="json", data=None, expected_status=None, headers=None, **options):
         """
         Make an HTTP request to the given relative URL with the host, user, and password information
@@ -59,43 +126,28 @@ class AmcatAPI(object):
             expected_status = dict(get=200, post=201)[method]
         url = "{self.host}/api/v4/{url}".format(**locals())
         options = dict({'format' : format}, **options)
-        r = requests.request(method, url, auth=(self.user, self.password), data=data, params=options, headers=headers)
-        log.info("HTTP {method} {url} (options={options!r}, data={data!r}) -> {r.status_code}".format(**locals()))
-        if r.status_code != expected_status:
-            try:
-                err = r.json()
-            except:
-                # couldn't get json, so raise generic error
-                msg = "Request {url!r} returned code {r.status_code}, expected {expected_status}:\n{r.text}".format(**locals())
-                raise APIError(r.status_code, msg, url, r.text)
-            else:
-                if not all(x in err for x in ("status", "message", "description", "details")):
-                    msg = "Request {url!r} returned code {r.status_code}, expected {expected_status}:\n{r.text}".format(**locals())
-                    raise APIError(r.status_code, msg, url, r.text)    
-                raise APIError(err["status"],  err['message'], url, err, err["description"], err["details"])
-
-
-        if format == 'json':
-            try:
-                return r.json()
-            except:
-                raise Exception("Cannot decode json; text={r.text!r}".format(**locals()))
-        else:
-            return r.text
+        
+        _headers = {"Authentication" : "Token: {self.token}".format(**locals())}
+        if headers: _headers.update(headers)
+        
+        r = requests.request(method, url, data=data, params=options, headers=_headers)
+        log.info("HTTP {method} {url} (options={options!r}, data={data!r}, headers={_headers}) -> {r.status_code}"
+                 .format(**locals()))
+        return check(r)
         
     def list_sets(self, project, **filters):
         """List the articlesets in a project"""
-        url = articleset_url.format(**locals())
+        url = URL.articleset.format(**locals())
         return self.request(url, **filters)
 
     def list_articles(self, project, articleset, **filters):
         """List the articles in a set"""
-        url = article_url.format(**locals())
+        url = URL.article.format(**locals())
         return self.request(url, **filters)
     
     def create_set(self, project, json_data=None, **options):
         """Create a new article set. Provide the needed arguments using the post_data or with key-value pairs"""
-        url = articleset_url.format(**locals())
+        url = URL.articleset.format(**locals())
         if json_data is None:
             # form encoded request
             return self.request(url, method="post", data=options)
@@ -111,7 +163,7 @@ class AmcatAPI(object):
         json_data can be a dictionary or list of dictionaries. Each dict can contain a 'children' attribute which
         is another list of dictionaries. 
         """
-        url = article_url.format(**locals())
+        url = URL.article.format(**locals())
         if json_data is None: #TODO duplicated from create_set, move into requests (or separate post method?)
             # form encoded request
             return self.request(url, method="post", data=options)

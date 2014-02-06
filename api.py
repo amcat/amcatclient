@@ -36,6 +36,7 @@ log = logging.getLogger(__name__)
 class URL:
     articleset = 'projects/{project}/articlesets/'
     article = articleset + '{articleset}/articles/'
+    xtas = article + '{article}/xtas/{method}/'
     get_token = 'get_token'
 
 AUTH_FILE = "~/.amcatauth"
@@ -173,6 +174,10 @@ class AmcatAPI(object):
             headers = {'content-type': 'application/json'}
             return self.request(url, method='post', data=json_data, headers=headers)
 
+    def get_parse(self, project, articleset, article, method):
+        url = URL.xtas.format(**locals())
+        return self.request(url)
+        
         
 if __name__ == '__main__':
     import argparse, sys, pydoc

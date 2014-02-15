@@ -39,7 +39,7 @@ class URL:
     xtas = article + '{article}/xtas/{method}/'
     get_token = 'get_token'
 
-AUTH_FILE = "~/.amcatauth"
+AUTH_FILE = os.path.join("~", ".amcatauth")
     
 class APIError(EnvironmentError):
     def __init__(self, http_status, message, url, response, description=None, details=None):
@@ -128,9 +128,8 @@ class AmcatAPI(object):
         url = "{self.host}/api/v4/{url}".format(**locals())
         options = dict({'format' : format}, **options)
         
-        _headers = {"Authentication" : "Token: {self.token}".format(**locals())}
+        _headers = {"Authorization": "Token {self.token}".format(**locals())}
         if headers: _headers.update(headers)
-        
         r = requests.request(method, url, data=data, params=options, headers=_headers)
         log.info("HTTP {method} {url} (options={options!r}, data={data!r}, headers={_headers}) -> {r.status_code}"
                  .format(**locals()))

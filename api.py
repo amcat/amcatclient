@@ -24,7 +24,7 @@ Utility module for accessing the AmCAT API.
 This module is designed to be used as an independent module, so you can copy
 this file into your project. For that reason, this module is also licensed
 under the GNU Lesser GPL rather than the Affero GPL, so feel free to use it
-in non-GPL programs. 
+in non-GPL programs.
 """
 
 import requests, json
@@ -40,7 +40,7 @@ class URL:
     get_token = 'get_token'
 
 AUTH_FILE = os.path.join("~", ".amcatauth")
-    
+
 class APIError(EnvironmentError):
     def __init__(self, http_status, message, url, response, description=None, details=None):
         super(APIError, self).__init__(http_status, message, url)
@@ -58,7 +58,7 @@ def check(response, expected_status=200, url=None, json=True):
     """
     if response.status_code != expected_status:
         if url is None: url = response.url
-            
+
         try:
             err = response.json()
         except:
@@ -70,7 +70,7 @@ def check(response, expected_status=200, url=None, json=True):
             if not all(x in err for x in ("status", "message", "description", "details")):
                 msg = ("Request {url!r} returned code {response.status_code}, expected {expected_status}:\n{response.text}"
                        .format(**locals()))
-                raise APIError(response.status_code, msg, url, response.text)    
+                raise APIError(response.status_code, msg, url, response.text)
             raise APIError(err["status"],  err['message'], url, err, err["description"], err["details"])
     if json:
         try:
@@ -79,7 +79,7 @@ def check(response, expected_status=200, url=None, json=True):
             raise Exception("Cannot decode json; text={response.text!r}".format(**locals()))
     else:
         return response.text
-        
+
 class AmcatAPI(object):
     def __init__(self, host, user=None, password=None, token=None):
         self.host = host
@@ -109,15 +109,15 @@ class AmcatAPI(object):
             raise Exception("No authentication info for {user}@{self.host} from {fn} or AMCAT_USER / AMCAT_PASSWORD variables"
                             .format(**locals()))
         return user, password
-                           
-                        
+
+
     def get_token(self, user=None, password=None):
         if user is None or password is None:
             user, password = self._get_auth()
         url = "{self.host}/api/v4/{url}".format(url=URL.get_token, **locals())
         r = requests.post(url, data={'username' : user, 'password' : password})
         return check(r)['token']
-        
+
     def request(self, url, method="get", format="json", data=None, expected_status=None, headers=None, **options):
         """
         Make an HTTP request to the given relative URL with the host, user, and password information
@@ -127,14 +127,14 @@ class AmcatAPI(object):
             expected_status = dict(get=200, post=201)[method]
         url = "{self.host}/api/v4/{url}".format(**locals())
         options = dict({'format' : format}, **options)
-        
+
         _headers = {"Authorization": "Token {self.token}".format(**locals())}
         if headers: _headers.update(headers)
         r = requests.request(method, url, data=data, params=options, headers=_headers)
         log.info("HTTP {method} {url} (options={options!r}, data={data!r}, headers={_headers}) -> {r.status_code}"
                  .format(**locals()))
-        return check(r)
-        
+        return check(r, expected_status=expected_status)
+
     def list_sets(self, project, **filters):
         """List the articlesets in a project"""
         url = URL.articleset.format(**locals())
@@ -144,7 +144,7 @@ class AmcatAPI(object):
         """List the articles in a set"""
         url = URL.article.format(**locals())
         return self.request(url, **filters)
-    
+
     def create_set(self, project, json_data=None, **options):
         """Create a new article set. Provide the needed arguments using the post_data or with key-value pairs"""
         url = URL.articleset.format(**locals())
@@ -161,7 +161,7 @@ class AmcatAPI(object):
         """Create one or more articles in the set. Provide the needed arguments using the json_data or with key-value pairs
 
         json_data can be a dictionary or list of dictionaries. Each dict can contain a 'children' attribute which
-        is another list of dictionaries. 
+        is another list of dictionaries.
         """
         url = URL.article.format(**locals())
         if json_data is None: #TODO duplicated from create_set, move into requests (or separate post method?)
@@ -176,12 +176,12 @@ class AmcatAPI(object):
     def get_parse(self, project, articleset, article, method):
         url = URL.xtas.format(**locals())
         return self.request(url)
-        
-        
+
+
 if __name__ == '__main__':
     import argparse, sys, pydoc
     logging.basicConfig(level=logging.INFO)
-    
+
     actions = {}
     for name in dir(AmcatAPI):
         if name.startswith("_"): continue
@@ -196,7 +196,7 @@ if __name__ == '__main__':
     parser.add_argument('action', help="The action to run. Valid options: help, list_sets. Use help <action> to get help op the chosen action")
     parser.add_argument('argument', help="Additional arguments for the action. User key=value to specify keyword arguments. Actions using post_data can be given using json encoded string or by pointing to a file using post_data=@filename.", nargs="*")
     opts = parser.parse_args()
-    
+
     if opts.action == "help":
         if opts.argument:
             action = opts.argument[0]
@@ -224,6 +224,6 @@ if __name__ == '__main__':
             print("TypeError on calling {action.__name__}: {e}\n".format(**locals()))
             print(pydoc.render_doc(action, "Help on %s"), file=sys.stderr)
             sys.exit(1)
-                
+
         json.dump(result, sys.stdout, indent=2, sort_keys=True)
         print()

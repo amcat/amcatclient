@@ -33,6 +33,7 @@ import logging
 import os
 import os.path
 import csv
+import itertools
 
 log = logging.getLogger(__name__)
 
@@ -164,10 +165,20 @@ class AmcatAPI(object):
                  .format(**locals()))
         return check(r, expected_status=expected_status)
 
+    def get_pages(self, url, page=1, **filters):
+        r = self.request(url)
+        for page in itertools.count(page):
+            r = self.request(url, page=page, **filters)
+            log.debug("Got {url} page {page} / {pages}".format(url=url, **r))
+            for row in r['results']:
+                yield row
+            if r['next'] is None:
+                break
+
     def list_sets(self, project, **filters):
         """List the articlesets in a project"""
         url = URL.articlesets.format(**locals())
-        return self.request(url, **filters)
+        return self.get_pages(url, **filters)
 
     def get_set(self, project, articleset, **filters):
         """List the articlesets in a project"""
@@ -177,7 +188,7 @@ class AmcatAPI(object):
     def list_articles(self, project, articleset, **filters):
         """List the articles in a set"""
         url = URL.article.format(**locals())
-        return self.request(url, **filters)
+        return self.get_pages(url, **filters)
 
     def get_media(self, medium_ids):
         query = "&".join("pk={}".format(mid) for mid in medium_ids)

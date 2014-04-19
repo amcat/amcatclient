@@ -36,6 +36,9 @@ import re
 import datetime
 from lxml import html, etree
 
+######################################################################
+###       Functions specific to reading/parsing wiki news          ###
+######################################################################
 
 def get_pages(url):
     """
@@ -101,6 +104,10 @@ def date_of_unit(self, doc):
      # and extract "title".
      return doc.cssselect('#publishDate')[0].get('title')
 
+######################################################################
+###       AmCAT functionality: connect to API and add articles     ###
+######################################################################
+
 def scrape_wikinews(conn, project, articleset, category):
     """
     Scrape wikinews articles from the given category
@@ -111,7 +118,8 @@ def scrape_wikinews(conn, project, articleset, category):
     url = "http://en.wikinews.org/wiki/Category:{}".format(category)
     for page in get_pages(url):
         arts = [get_article(a) for a in get_articles(page)]
-        print("Adding {} articles to set {}:{}".format(len(arts), project, articleset))
+        print("Adding {} articles to set {}:{}"
+              .format(len(arts), project, articleset))
         conn.create_articles(project=project, articleset=articleset,
                             json_data=arts)
 

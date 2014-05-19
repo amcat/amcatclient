@@ -9,7 +9,7 @@ import requests
 import logging
 import itertools
 
-from amcatclient.amcatclient import AmcatAPI
+from amcatclient import AmcatAPI
 
 
 

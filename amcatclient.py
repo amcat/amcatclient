@@ -37,6 +37,11 @@ import itertools
 
 log = logging.getLogger(__name__)
 
+def serialize(obj):
+    """JSON serializer that accepts datetime & date"""
+    from datetime import datetime, date
+    if isinstance(obj, (datetime, date)):
+        return obj.isoformat()
 
 class URL:
     articlesets = 'projects/{project}/articlesets/'
@@ -206,7 +211,7 @@ class AmcatAPI(object):
             return self.request(url, method="post", data=options)
         else:
             if not isinstance(json_data, (str, unicode)):
-                json_data = json.dumps(json_data)
+                json_data = json.dumps(json_data,default = serialize)
             headers = {'content-type': 'application/json'}
             return self.request(
                 url, method='post', data=json_data, headers=headers)
@@ -227,7 +232,7 @@ class AmcatAPI(object):
             return self.request(url, method="post", data=options)
         else:
             if not isinstance(json_data, (str, unicode)):
-                json_data = json.dumps(json_data)
+                json_data = json.dumps(json_data,default = serialize)
             headers = {'content-type': 'application/json'}
             return self.request(
                 url, method='post', data=json_data, headers=headers)

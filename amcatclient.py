@@ -50,6 +50,7 @@ class URL:
     xtas = article + '{article}/xtas/{method}/'
     get_token = 'get_token'
     media = 'medium'
+    aggregate = 'aggregate'
 
 AUTH_FILE = os.path.join("~", ".amcatauth")
 
@@ -171,7 +172,6 @@ class AmcatAPI(object):
         return check(r, expected_status=expected_status)
 
     def get_pages(self, url, page=1, **filters):
-        r = self.request(url)
         for page in itertools.count(page):
             r = self.request(url, page=page, **filters)
             log.debug("Got {url} page {page} / {pages}".format(url=url, **r))
@@ -179,6 +179,11 @@ class AmcatAPI(object):
                 yield row
             if r['next'] is None:
                 break
+
+    def aggregate(self, **filters):
+        """Conduct an aggregate query"""
+        url = URL.aggregate.format(**locals())
+        return self.get_pages(url, **filters)
 
     def list_sets(self, project, **filters):
         """List the articlesets in a project"""

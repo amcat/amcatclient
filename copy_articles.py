@@ -35,7 +35,6 @@ def copy_articles(src_api, src_project, src_set,
     if trg_set is None:
         trg_set = create_set(src_api, src_project, src_set, trg_api, trg_project)
     articles = src_api.list_articles(src_project, src_set)
-    print(articles)
     for i in itertools.count():
         batch = list(itertools.islice(articles, batch_size))
         if not batch:

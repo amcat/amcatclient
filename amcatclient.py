@@ -47,6 +47,7 @@ class URL:
     articlesets = 'projects/{project}/articlesets/'
     articleset = articlesets + '{articleset}/'
     article = articleset + 'articles/'
+    search = 'search'
     xtas = article + '{article}/xtas/{method}/'
     get_token = 'get_token'
     media = 'medium'
@@ -245,3 +246,7 @@ class AmcatAPI(object):
     def get_parse(self, project, articleset, article, method):
         url = URL.xtas.format(**locals())
         return self.request(url)
+
+    def search(self, articleset, query, columns=['hits'], minimal=True, **filters):
+        return self.get_pages(URL.search, q=query, col=columns, minimal=minimal, sets=articleset, **filters)
+

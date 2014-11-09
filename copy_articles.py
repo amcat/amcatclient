@@ -46,6 +46,7 @@ def copy_articles(src_api, src_project, src_set,
         def convert(a):
             a = {k: v for (k, v) in a.iteritems() if k in ART_ARGS}
             if not a['text']: a['text'] = "-"
+            if not a['headline']: a['headline']="-"
             return a
         batch = map(convert, batch)
 

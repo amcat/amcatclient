@@ -172,10 +172,10 @@ class AmcatAPI(object):
                  .format(**locals()))
         return check(r, expected_status=expected_status)
 
-    def get_pages(self, url, page=1, **filters):
+    def get_pages(self, url, page=1, page_size=100, **filters):
         for page in itertools.count(page):
-            r = self.request(url, page=page, **filters)
-            log.debug("Got {url} page {page} / {pages}".format(url=url, **r))
+            r = self.request(url, page=page, page_size=page_size, **filters)
+            log.warn("Got {url} page {page} / {pages}".format(url=url, **r))
             for row in r['results']:
                 yield row
             if r['next'] is None:
@@ -196,10 +196,10 @@ class AmcatAPI(object):
         url = URL.articleset.format(**locals())
         return self.request(url, **filters)
 
-    def list_articles(self, project, articleset, **filters):
+    def list_articles(self, project, articleset, page=1, **filters):
         """List the articles in a set"""
         url = URL.article.format(**locals())
-        return self.get_pages(url, **filters)
+        return self.get_pages(url, page=page, **filters)
 
     def get_media(self, medium_ids):
         query = "&".join("pk={}".format(mid) for mid in medium_ids)

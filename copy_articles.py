@@ -33,11 +33,11 @@ def create_set(src_api, src_project, src_set, trg_api, trg_project):
 
 def copy_articles(src_api, src_project, src_set,
                   trg_api, trg_project, trg_set=None,
-                  batch_size=100):
+                  batch_size=100, from_page=1):
     if trg_set is None:
         trg_set = create_set(src_api, src_project, src_set, trg_api, trg_project)
-    articles = src_api.list_articles(src_project, src_set)
-    for i in itertools.count():
+    articles = src_api.list_articles(src_project, src_set, page=from_page, page_size=batch_size)
+    for i in itertools.count(from_page):
         batch = list(itertools.islice(articles, batch_size))
         if not batch:
             logging.info("Done")
@@ -71,6 +71,9 @@ if __name__ == '__main__':
                         type=int)
     parser.add_argument("--batch-size", "-b", help='Batch size for copying',
                         type=int, default=100)
+    parser.add_argument("--from-page", "-p", help='Start from page (batch)',
+                        type=int, default=1)
+
 
     args = parser.parse_args()
 
@@ -84,4 +87,4 @@ if __name__ == '__main__':
 
     copy_articles(src, args.source_project, args.source_set,
                   trg, args.target_project, args.target_set,
-                  args.batch_size)
+                  args.batch_size, args.from_page)

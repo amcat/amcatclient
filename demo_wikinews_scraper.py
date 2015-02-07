@@ -34,7 +34,9 @@ the AmCAT API as back-end, and to provide non-copyrighted text for examples
 from urlparse import urljoin
 import re
 import datetime
+import logging
 from lxml import html, etree
+logging.basicConfig(level=logging.INFO)
 
 ######################################################################
 ###       Functions specific to reading/parsing wiki news          ###
@@ -43,25 +45,28 @@ from lxml import html, etree
 def get_pages(url):
     """
     Return the 'pages' from the starting url
-    Technically, look for the 'next 200' link, yield and download it,  repeat
+    Technically, look for the 'next 50' link, yield and download it,  repeat
     """
     while True:
         yield url
         doc = html.parse(url).find("body")
-        links = [a for a in doc.findall(".//a") if a.text == "next 200"]
+        links = [a for a in doc.findall(".//a") if a.text and a.text.startswith("next ")]
         if not links:
             break
         url = urljoin(url, links[0].get('href'))
 
-def get_articles(url):
+def get_article_urls(url):
     """
     Return the articles from a page
-    Technically, look for id=mw-pages elements and yield the links from
-    the list under those elements
+    Technically, look for a div with class mw-search-result-heading
+    and get the first link from this div
     """
-    doc = html.parse(url).find("body")
-    for a in doc.findall(".//*[@id='mw-pages']//li/a"):
-        href = urljoin(url, a.get('href'))
+    doc = html.parse(url).getroot()
+    for div in doc.cssselect("div.mw-search-result-heading"):
+        href = div.cssselect("a")[0].get('href')
+        if ":" in href:
+            continue # skip Category: links
+        href = urljoin(url, href)
         yield href
 
 def export_url(url):
@@ -73,27 +78,29 @@ def export_url(url):
             "&action=submit&pages={}".format(page))
 
 
+def get_articles(urls):
+    for url in urls:
+        try:
+            yield get_article(url)
+        except:
+            logging.exception("Error on scraping {}".format(url))
+
+
 def get_article(url):
     """
     Return a single article as a 'amcat-ready' dict
     Uses the 'export' function of wikinews to get an xml article
     """
-    art = etree.parse(export_url(url))
-    ns = {'x' : 'http://www.mediawiki.org/xml/export-0.8/'}
-    title = art.find(".//x:title", namespaces=ns).text
-    date = art.find(".//x:timestamp", namespaces=ns).text
-    author = art.find(".//x:contributor/x:username", namespaces=ns).text
-    id = int(art.find(".//x:page/x:id", namespaces=ns).text)
-    # get text, strip hyperlinks, tags, and sources
-    text = art.find(".//x:text", namespaces=ns).text
-    text = re.sub(r"\[\[.*?\|(.*?)\]\]", "\\1", text, flags=re.DOTALL)
-    text = re.sub("{{.*?}}", "", text, flags=re.DOTALL)
-    text = text.strip()
+    a = html.parse(url).getroot()
+    title = a.cssselect(".firstHeading")[0].text_content()
+    date = a.cssselect(".published")[0].text_content()
+    date = datetime.datetime.strptime(date, "%A, %B %d, %Y").isoformat()
+    paras = a.cssselect("#mw-content-text p")
+    paras = paras[1:] # skip first paragraph, which contains date
+    text = "\n\n".join(p.text_content().strip() for p in paras)
 
     return dict(headline=title,
                 date=date,
-                author=author,
-                externalid=id,
                 url=url,
                 text=text,
                 medium="Wikinews")
@@ -108,18 +115,20 @@ def date_of_unit(self, doc):
 ###       AmCAT functionality: connect to API and add articles     ###
 ######################################################################
 
-def scrape_wikinews(conn, project, articleset, category):
+def scrape_wikinews(conn, project, articleset, query):
     """
-    Scrape wikinews articles from the given category
+    Scrape wikinews articles from the given query
     @param conn: The AmcatAPI object
     @param articleset: The target articleset ID
     @param category: The wikinews category name
     """
-    url = "http://en.wikinews.org/wiki/Category:{}".format(category)
+    url = "http://en.wikinews.org/w/index.php?search={}&limit=50".format(query)
+    logging.info(url)
     for page in get_pages(url):
-        arts = [get_article(a) for a in get_articles(page)]
-        print("Adding {} articles to set {}:{}"
-              .format(len(arts), project, articleset))
+        urls = get_article_urls(page)
+        arts = list(get_articles(urls))
+        logging.info("Adding {} articles to set {}:{}"
+                     .format(len(arts), project, articleset))
         conn.create_articles(project=project, articleset=articleset,
                             json_data=arts)
 
@@ -132,7 +141,7 @@ if __name__ == '__main__':
     parser.add_argument('host', help='The AmCAT host to connect to, '
                         'e.g. http://amcat.vu.nl')
     parser.add_argument('project', help='Project ID to add the articles to')
-    parser.add_argument('category', help='Wikinews category to scrape')
+    parser.add_argument('query', help='Wikinews query for scraping')
     parser.add_argument('--username', help='Username for AmCAT login')
     parser.add_argument('--password', help='Password for AmCAT login')
     args = parser.parse_args()
@@ -140,7 +149,7 @@ if __name__ == '__main__':
     conn = AmcatAPI(args.host, args.username, args.password)
     category = "Iraq"
     articleset = conn.create_set(project=args.project,
-                                 name="Wikinews articles {}".format(category),
+                                 name="Wikinews articles for {}".format(args.query),
                                  provenance="Scraped from wikinews on {}"
                                  .format(datetime.datetime.now().isoformat()))
-    scrape_wikinews(conn, args.project, articleset['id'], category)
+    scrape_wikinews(conn, args.project, articleset['id'], args.query)

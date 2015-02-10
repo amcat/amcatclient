@@ -3,16 +3,19 @@ amcatclient
 
 Client code for interfacing with the AmCAT API. 
 
-Requirements
-------------
-
-- requests (can be installed using `pip install requests`)
-
 Installing
 ----------
 
-You only need the file `amcatclient.py`, which you can download or clone using git. 
-Since his is licensed with the permissive MIT license, feel free to include in your own projects, whether open source or not.
+You can install amcatclient directly from github using pip: 
+
+```{sh}
+pip install git+git://github.com/amcat/amcatclient
+```
+
+(Note that this requires that you either use sudo or a virtual environment)
+
+You can also copy file [amcatclient.py](amcatclient/amcatclient.py), which you can download or clone using git. 
+Since his is licensed with the permissive MIT license, feel free to include this file in your own projects, whether open source or not.
 
 Usage
 -----

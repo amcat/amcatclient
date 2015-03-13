@@ -158,18 +158,35 @@ class AmcatAPI(object):
         if successful, and raises an exception otherwise
         """
         if expected_status is None:
-            expected_status = dict(get=200, post=201)[method]
+            if method == "get":
+                expected_status = 200
+            elif method == "post":
+                expected_status = 201
+            else:
+                raise ValueError("No expected status supplied and method unknown.")
+
         url = "{self.host}/api/v4/{url}".format(**locals())
         options = dict({'format': format}, **options)
+        options = {field: value for field, value in options.items() if value is not None}
+        headers = dict(headers or {}, Authorization="Token {}".format(self.token))
 
-        _headers = {"Authorization": "Token {self.token}".format(**locals())}
-        if headers:
-            _headers.update(headers)
-        r = requests.request(
-            method, url, data=data, params=options, headers=_headers)
-        log.debug("HTTP {method} {url} (options={options!r}, "
-                 "data={data!r}, headers={_headers}) -> {r.status_code}"
-                 .format(**locals()))
+        if method == "get":
+            # If method is purely GET, we can use X-HTTP-METHOD-OVERRIDE to send our
+            # query via POST. This allows for a large number of parameters to be supplied
+            assert(data is None)
+
+            headers.update({"X-HTTP-METHOD-OVERRIDE": method})
+            data = options
+            options = None
+            method = "post"
+
+        r = requests.request(method, url, data=data, params=options, headers=headers)
+
+        log.debug(
+            "HTTP {method} {url} (options={options!r}, data={data!r},"
+            "headers={headers}) -> {r.status_code}".format(**locals())
+        )
+
         return check(r, expected_status=expected_status)
 
     def get_pages(self, url, page=1, page_size=100, **filters):

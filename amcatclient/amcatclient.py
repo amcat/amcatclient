@@ -66,6 +66,9 @@ class APIError(EnvironmentError):
         self.response = response
         self.description = description
         self.details = details
+    def __str__(self):
+        return "{parent}: {description}; {details}".format(
+            parent=super(APIError, self).__str__(), **self.__dict__)
 
 
 def check(response, expected_status=200, url=None, json=True):
@@ -266,4 +269,3 @@ class AmcatAPI(object):
 
     def search(self, articleset, query, columns=['hits'], minimal=True, **filters):
         return self.get_pages(URL.search, q=query, col=columns, minimal=minimal, sets=articleset, **filters)
-

@@ -47,6 +47,7 @@ class URL:
     articlesets = 'projects/{project}/articlesets/'
     articleset = articlesets + '{articleset}/'
     article = articleset + 'articles/'
+    upload = articleset + 'article-upload/'
     search = 'search'
     xtas = article + '{article}/xtas/{method}/'
     get_token = 'get_token'
@@ -250,7 +251,7 @@ class AmcatAPI(object):
                           can contain a 'children' attribute which
                           is another list of dictionaries.
         """
-        url = URL.article.format(**locals())
+        url = URL.upload.format(**locals())
         # TODO duplicated from create_set, move into requests
         # (or separate post method?)
         if json_data is None:

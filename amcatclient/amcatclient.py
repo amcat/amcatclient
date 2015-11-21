@@ -39,8 +39,10 @@ log = logging.getLogger(__name__)
 
 def serialize(obj):
     """JSON serializer that accepts datetime & date"""
-    from datetime import datetime, date
-    if isinstance(obj, (datetime, date)):
+    from datetime import datetime, date, time
+    if isinstance(obj, date):
+        obj = datetime.combine(obj, time.min)
+    if isinstance(obj, datetime):
         return obj.isoformat()
 
 class URL:

@@ -41,8 +41,12 @@ ART_ARGS = ["metastring", "byline", "uuid", "author", "headline", "text",
 def create_set(src_api, src_project, src_set, trg_api, trg_project):
     s = src_api.get_set(src_project, src_set)
     s = {k: v for (k, v) in s.iteritems() if k in SET_ARGS}
-    if not s.get('provenance'): 
-        s['provenance'] = "Copied from {src_api.host} project {src_project} set {src_set}".format(**locals())
+
+    provenance = "Copied from {src_api.host} project {src_project} set {src_set}".format(**locals())
+    if s.get('provenance'):
+        s['provenance'] = "\n".join([s['provenance'], provenance])
+    else:
+        s['provenance'] = provenance
 
     result = trg.create_set(trg_project, s)
     logging.info("Created set {id}:{name} in project {project}"

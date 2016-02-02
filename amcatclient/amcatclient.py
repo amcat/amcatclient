@@ -34,7 +34,7 @@ import os
 import os.path
 import csv
 import itertools
-
+import tempfile
 log = logging.getLogger(__name__)
 
 def serialize(obj):
@@ -72,8 +72,8 @@ class APIError(EnvironmentError):
     def __str__(self):
         return "{parent}: {description}; {details}".format(
             parent=super(APIError, self).__str__(), **self.__dict__)
-
-
+    
+        
 def check(response, expected_status=200, url=None, json=True):
     """
     Check whether the status code of the response equals expected_status and
@@ -89,20 +89,20 @@ def check(response, expected_status=200, url=None, json=True):
         try:
             err = response.json()
         except:
-            # couldn't get json, so raise generic error
-            msg = ("Request {url!r} returned code {response.status_code}, "
-                   "expected {expected_status}:\n{response.text}"
-                   .format(**locals()))
-            raise APIError(response.status_code, msg, url, response.text)
-        else:
-            if not all(x in err for x in ("status", "message",
-                                          "description", "details")):
-                msg = ("Request {url!r} returned code {response.status_code},"
-                       " expected {expected_status}:\n{response.text}"
-                       .format(**locals()))
-                raise APIError(response.status_code, msg, url, response.text)
+            err = {} # force generic error
+
+        if all(x in err for x in ("status", "message", "description", "details")):
             raise APIError(err["status"], err['message'], url,
                            err, err["description"], err["details"])
+        else: # generic error
+            suffix = ".html" if "<html" in response.text else ".txt"
+            with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as f:
+                f.write(response.text)
+                
+            msg = ("Request {url!r} returned code {response.status_code},"
+                   " expected {expected_status}. Response written to {f.name}"
+                   .format(**locals()))
+            raise APIError(response.status_code, msg, url, response.text)
     if json:
         try:
             return response.json()

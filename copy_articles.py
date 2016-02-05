@@ -35,7 +35,7 @@ from amcatclient import AmcatAPI
 SET_ARGS = ["name", "provenance"]
 ART_ARGS = ["metastring", "byline", "uuid", "author", "headline", "text",
             "section", "url", "length", "addressee", "externalid",
-            "insertdate", "date", "pagenr", "medium"]
+            "insertdate", "date", "pagenr", "medium", "parent"]
 
 
 def create_set(src_api, src_project, src_set, trg_api, trg_project):
@@ -59,7 +59,9 @@ def copy_articles(src_api, src_project, src_set,
                   batch_size=100, from_page=1):
     if trg_set is None:
         trg_set = create_set(src_api, src_project, src_set, trg_api, trg_project)
-    articles = src_api.list_articles(src_project, src_set, page=from_page, page_size=batch_size)
+    articles = src_api.list_articles(src_project, src_set, page=from_page, page_size=batch_size, order_by="parent")
+    uuids = {}
+    
     for i in itertools.count(from_page):
         batch = list(itertools.islice(articles, batch_size))
         if not batch:
@@ -69,9 +71,14 @@ def copy_articles(src_api, src_project, src_set,
                      .format(n=len(batch), **locals()))
 
         def convert(a):
+            if a.get('uuid'):
+                uuids[a['id']] = a['uuid']
             a = {k: v for (k, v) in a.iteritems() if k in ART_ARGS}
             if not a['text']: a['text'] = "-"
             if not a['headline']: a['headline']="-"
+            parent = a.get('parent')
+            if parent and parent in uuids:
+                a['parent'] = uuids[parent]
             return a
         batch = map(convert, batch)
 

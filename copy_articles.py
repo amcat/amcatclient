@@ -59,9 +59,8 @@ def copy_articles(src_api, src_project, src_set,
                   batch_size=100, from_page=1):
     if trg_set is None:
         trg_set = create_set(src_api, src_project, src_set, trg_api, trg_project)
-    articles = src_api.list_articles(src_project, src_set, page=from_page, page_size=batch_size, order_by="parent")
+    articles = src_api.list_articles(src_project, src_set, page=from_page, page_size=batch_size, order_by="parent", text=True)
     uuids = {}
-    
     for i in itertools.count(from_page):
         batch = list(itertools.islice(articles, batch_size))
         if not batch:

@@ -49,7 +49,6 @@ class URL:
     articlesets = 'projects/{project}/articlesets/'
     articleset = articlesets + '{articleset}/'
     article = articleset + 'articles/'
-    upload = articleset + 'article-upload/'
     search = 'search'
     xtas = article + '{article}/xtas/{method}/'
     get_token = 'get_token'
@@ -175,7 +174,6 @@ class AmcatAPI(object):
         options = dict({'format': format}, **options)
         options = {field: value for field, value in options.items() if value is not None}
         headers = dict(headers or {}, Authorization="Token {}".format(self.token))
-
         if method == "get":
             # If method is purely GET, we can use X-HTTP-METHOD-OVERRIDE to send our
             # query via POST. This allows for a large number of parameters to be supplied
@@ -253,7 +251,7 @@ class AmcatAPI(object):
                           can contain a 'children' attribute which
                           is another list of dictionaries.
         """
-        url = URL.upload.format(**locals())
+        url = URL.article.format(**locals())
         # TODO duplicated from create_set, move into requests
         # (or separate post method?)
         if json_data is None:

@@ -35,6 +35,9 @@ import os.path
 import csv
 import itertools
 import tempfile
+
+from six import string_types
+
 log = logging.getLogger(__name__)
 
 def serialize(obj):
@@ -96,7 +99,7 @@ def check(response, expected_status=200, url=None, json=True):
         else: # generic error
             suffix = ".html" if "<html" in response.text else ".txt"
             with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as f:
-                f.write(response.text)
+                f.write(response.text.encode("utf-8"))
                 
             msg = ("Request {url!r} returned code {response.status_code},"
                    " expected {expected_status}. Response written to {f.name}"
@@ -237,7 +240,7 @@ class AmcatAPI(object):
             # form encoded request
             return self.request(url, method="post", data=options)
         else:
-            if not isinstance(json_data, (str, unicode)):
+            if not isinstance(json_data, (string_types)):
                 json_data = json.dumps(json_data,default = serialize)
             headers = {'content-type': 'application/json'}
             return self.request(
@@ -258,7 +261,7 @@ class AmcatAPI(object):
             # form encoded request
             return self.request(url, method="post", data=options)
         else:
-            if not isinstance(json_data, (str, unicode)):
+            if not isinstance(json_data, string_types):
                 json_data = json.dumps(json_data,default = serialize)
             headers = {'content-type': 'application/json'}
             return self.request(

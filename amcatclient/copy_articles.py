@@ -40,7 +40,7 @@ ART_ARGS = ["metastring", "byline", "uuid", "author", "headline", "text",
 
 def create_set(src_api, src_project, src_set, trg_api, trg_project):
     s = src_api.get_set(src_project, src_set)
-    s = {k: v for (k, v) in s.iteritems() if k in SET_ARGS}
+    s = {k: v for (k, v) in s.items() if k in SET_ARGS}
 
     provenance = "Copied from {src_api.host} project {src_project} set {src_set}".format(**locals())
     if s.get('provenance'):
@@ -72,14 +72,14 @@ def copy_articles(src_api, src_project, src_set,
         def convert(a):
             if a.get('uuid'):
                 uuids[a['id']] = a['uuid']
-            a = {k: v for (k, v) in a.iteritems() if k in ART_ARGS}
+            a = {k: v for (k, v) in a.items() if k in ART_ARGS}
             if not a['text']: a['text'] = "-"
             if not a['headline']: a['headline']="-"
             parent = a.get('parent')
             if parent and parent in uuids:
                 a['parent'] = uuids[parent]
             return a
-        batch = map(convert, batch)
+        batch = [convert(a) for a in batch]
 
         trg_api.create_articles(trg_project, trg_set, batch)
 

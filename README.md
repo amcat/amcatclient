@@ -6,10 +6,10 @@ Client code for interfacing with the AmCAT API.
 Installing
 ----------
 
-You can install amcatclient directly from github using pip: 
+You can install amcatclient using pip: 
 
 ```{sh}
-pip install git+git://github.com/amcat/amcatclient
+pip install amcatclient
 ```
 
 (Note that this requires that you either use sudo or a virtual environment)
@@ -18,7 +18,25 @@ You can also copy file [amcatclient.py](amcatclient/amcatclient.py), which you c
 Since his is licensed with the permissive MIT license, feel free to include this file in your own projects, whether open source or not.
 
 Usage
------
+====
+
+You can include amcatclient to use the AmCAT API from a program.
+The client also contains useful scripts for managing AmCAT instances, currently only `copy_articles.py`
+
+Client scripts
+----
+
+### Copying aritcles:
+
+You can copy articles from one server to another using the `copy_articles` script.
+Note that both servers need to be included in `~/.amcatauth` for this to work. 
+
+```{python}
+python -m amcatclient.copy_articles http://preview.amcat.nl http://localhost:8000 1 3 1
+```
+
+API
+----
 
 ```
 from amcatclient import AmcatAPI

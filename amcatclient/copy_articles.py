@@ -60,7 +60,6 @@ def copy_articles(src_api, src_project, src_set,
     if trg_set is None:
         trg_set = create_set(src_api, src_project, src_set, trg_api, trg_project)
     articles = src_api.list_articles(src_project, src_set, page=from_page, page_size=batch_size, order_by="parent", text=True)
-    uuids = {}
     for i in itertools.count(from_page):
         batch = list(itertools.islice(articles, batch_size))
         if not batch:
@@ -70,14 +69,9 @@ def copy_articles(src_api, src_project, src_set,
                      .format(n=len(batch), **locals()))
 
         def convert(a):
-            if a.get('uuid'):
-                uuids[a['id']] = a['uuid']
             a = {k: v for (k, v) in a.items() if k in ART_ARGS}
             if not a['text']: a['text'] = "-"
             if not a['headline']: a['headline']="-"
-            parent = a.get('parent')
-            if parent and parent in uuids:
-                a['parent'] = uuids[parent]
             return a
         batch = [convert(a) for a in batch]
 

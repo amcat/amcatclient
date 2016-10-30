@@ -76,7 +76,7 @@ class APIError(EnvironmentError):
             parent=super(APIError, self).__str__(), **self.__dict__)
     
         
-def check(response, expected_status=200, url=None, json=True):
+def check(response, expected_status=200, url=None):
     """
     Check whether the status code of the response equals expected_status and
     raise an APIError otherwise.
@@ -105,7 +105,7 @@ def check(response, expected_status=200, url=None, json=True):
                    " expected {expected_status}. Response written to {f.name}"
                    .format(**locals()))
             raise APIError(response.status_code, msg, url, response.text)
-    if json:
+    if response.headers.get('Content-Type') == 'application/json':
         try:
             return response.json()
         except:
@@ -195,7 +195,6 @@ class AmcatAPI(object):
             "HTTP {method} {url} (options={options!r}, data={data!r},"
             "headers={headers}) -> {r.status_code}".format(**locals())
         )
-
         return check(r, expected_status=expected_status)
 
     def get_pages(self, url, page=1, page_size=100, **filters):
@@ -304,14 +303,13 @@ if __name__ == '__main__':
     p.add_argument('project', help="Project ID")
     p.add_argument('articleset', help="Article Set ID")
     p.add_argument('--page-size', nargs=1, type=int, default=100, help="Number of items per page")
-    p.add_argument('--columns', help="Columns to retrieve (e.g. headline,date)")
+    p.add_argument('--columns', default='date,headline,medium', help="Columns to retrieve (e.g. headline,date)")
+    p.add_argument('--format', default='json', help="Format (currently only json is supported)", choices=['json'])
 
     args = parser.parse_args()
     c = AmcatAPI(args.server, args.username, args.password)
 
     if args.action == "get_articles":
-        kargs = dict(page_size=args.page_size)
-        if args.columns:
-            kargs['columns'] = args.columns.split(",")
+        kargs = dict(page_size=args.page_size, format=args.format, columns=args.columns.split(","))
         for a in c.get_articles(args.project, args.articleset, **kargs):
             print(json.dumps(a))

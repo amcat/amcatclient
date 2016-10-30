@@ -53,11 +53,11 @@ class URL:
     articleset = articlesets + '{articleset}/'
     article = articleset + 'articles/'
     search = 'search'
-    xtas = article + '{article}/xtas/{method}/'
     get_token = 'get_token'
     media = 'medium'
     aggregate = 'aggregate'
-
+    meta = articleset + "meta"
+    
 AUTH_FILE = os.path.join("~", ".amcatauth")
 
 
@@ -159,7 +159,7 @@ class AmcatAPI(object):
         return check(r)['token']
 
     def request(self, url, method="get", format="json", data=None,
-                expected_status=None, headers=None, **options):
+                expected_status=None, headers=None, use_xpost=True, **options):
         """
         Make an HTTP request to the given relative URL with the host,
         user, and password information. Returns the deserialized json
@@ -173,11 +173,13 @@ class AmcatAPI(object):
             else:
                 raise ValueError("No expected status supplied and method unknown.")
 
-        url = "{self.host}/api/v4/{url}".format(**locals())
-        options = dict({'format': format}, **options)
+        if not url.startswith("http"):
+            url = "{self.host}/api/v4/{url}".format(**locals())
+        if format is not None:
+            options = dict({'format': format}, **options)
         options = {field: value for field, value in options.items() if value is not None}
         headers = dict(headers or {}, Authorization="Token {}".format(self.token))
-        if method == "get":
+        if method == "get" and use_xpost:
             # If method is purely GET, we can use X-HTTP-METHOD-OVERRIDE to send our
             # query via POST. This allows for a large number of parameters to be supplied
             assert(data is None)
@@ -205,6 +207,20 @@ class AmcatAPI(object):
             if r['next'] is None:
                 break
 
+    def get_scroll(self, url, page_size=100, **filters):
+        n = 0
+        options = dict(page_size=page_size, **filters)
+        while True:
+            r = self.request(url, use_xpost=False, **options)
+            n += len(r['results'])
+            log.warn("Got {} {n}/{total}".format(url.split("?")[0], total=r['total'], **locals()))
+            for row in r['results']:
+                yield row
+            if r['next'] is None:
+                break
+            url = r['next']
+            options = {'format': None}
+            
     def aggregate(self, **filters):
         """Conduct an aggregate query"""
         url = URL.aggregate.format(**locals())
@@ -267,9 +283,35 @@ class AmcatAPI(object):
             return self.request(
                 url, method='post', data=json_data, headers=headers)
 
-    def get_parse(self, project, articleset, article, method):
-        url = URL.xtas.format(**locals())
-        return self.request(url)
+    def get_articles(self, project, articleset, format='json',
+                     columns=['date', 'headline', 'medium'], page_size=1000, page=1, **options):
+        url = URL.meta.format(**locals())
+        for a in self.get_scroll(url, page=page, page_size=page_size, format=format, columns=columns, **options):
+            yield a
 
     def search(self, articleset, query, columns=['hits'], minimal=True, **filters):
         return self.get_pages(URL.search, q=query, col=columns, minimal=minimal, sets=articleset, **filters)
+
+if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("server", help="Server hostname (e.g. https://amcat.nl)")
+    parser.add_argument("--username", help="Username")
+    parser.add_argument("--password", nargs="?", help="Password (leave empty to prompt)")
+    action_parser = parser.add_subparsers(dest='action', title='Actions',)
+
+    p = action_parser.add_parser("get_articles")
+    p.add_argument('project', help="Project ID")
+    p.add_argument('articleset', help="Article Set ID")
+    p.add_argument('--page-size', nargs=1, type=int, default=100, help="Number of items per page")
+    p.add_argument('--columns', help="Columns to retrieve (e.g. headline,date)")
+
+    args = parser.parse_args()
+    c = AmcatAPI(args.server, args.username, args.password)
+
+    if args.action == "get_articles":
+        kargs = dict(page_size=args.page_size)
+        if args.columns:
+            kargs['columns'] = args.columns.split(",")
+        for a in c.get_articles(args.project, args.articleset, **kargs):
+            print(json.dumps(a))

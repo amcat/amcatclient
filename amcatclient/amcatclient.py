@@ -40,6 +40,7 @@ from six import string_types
 
 log = logging.getLogger(__name__)
 
+
 def serialize(obj):
     """JSON serializer that accepts datetime & date"""
     from datetime import datetime, date, time
@@ -47,6 +48,7 @@ def serialize(obj):
         obj = datetime.combine(obj, time.min)
     if isinstance(obj, datetime):
         return obj.isoformat()
+
 
 class URL:
     articlesets = 'projects/{project}/articlesets/'
@@ -63,17 +65,18 @@ AUTH_FILE = os.path.join("~", ".amcatauth")
 
 class APIError(EnvironmentError):
 
-    def __init__(self, http_status, message, url,
-                 response, description=None, details=None):
+    def __init__(self, http_status, message, url, response, description=None, details=None):
         super(APIError, self).__init__(http_status, message, url)
         self.http_status = http_status
         self.url = url
         self.response = response
         self.description = description
         self.details = details
+
     def __str__(self):
         return "{parent}: {description}; {details}".format(
-            parent=super(APIError, self).__str__(), **self.__dict__)
+            parent=super(APIError, self).__str__(), **self.__dict__
+        )
     
         
 def check(response, expected_status=200, url=None):
@@ -134,8 +137,7 @@ class AmcatAPI(object):
         if os.path.exists(fn):
             for i, line in enumerate(csv.reader(open(fn))):
                 if len(line) != 3:
-                    log.warn(
-                        "Cannot parse line {i} in {fn}".format(**locals()))
+                    log.warning("Cannot parse line {i} in {fn}".format(**locals()))
                     continue
                 hostname, username, pwd = line
                 if (hostname in ("", "*", self.host)
@@ -200,7 +202,7 @@ class AmcatAPI(object):
     def get_pages(self, url, page=1, page_size=100, **filters):
         for page in itertools.count(page):
             r = self.request(url, page=page, page_size=page_size, **filters)
-            log.warn("Got {url} page {page} / {pages}".format(url=url, **r))
+            log.warning("Got {url} page {page} / {pages}".format(url=url, **r))
             for row in r['results']:
                 yield row
             if r['next'] is None:
@@ -212,7 +214,7 @@ class AmcatAPI(object):
         while True:
             r = self.request(url, use_xpost=False, **options)
             n += len(r['results'])
-            log.warn("Got {} {n}/{total}".format(url.split("?")[0], total=r['total'], **locals()))
+            log.warning("Got {} {n}/{total}".format(url.split("?")[0], total=r['total'], **locals()))
             for row in r['results']:
                 yield row
             if r['next'] is None:
@@ -277,13 +279,11 @@ class AmcatAPI(object):
             return self.request(url, method="post", data=options)
         else:
             if not isinstance(json_data, string_types):
-                json_data = json.dumps(json_data,default = serialize)
+                json_data = json.dumps(json_data, default=serialize)
             headers = {'content-type': 'application/json'}
-            return self.request(
-                url, method='post', data=json_data, headers=headers)
+            return self.request(url, method='post', data=json_data, headers=headers)
 
-    def get_articles(self, project, articleset, format='json',
-                     columns=['date', 'headline', 'medium'], page_size=1000, page=1, **options):
+    def get_articles(self, project, articleset, format='json', columns=['date', 'headline', 'medium'], page_size=1000, page=1, **options):
         url = URL.meta.format(**locals())
         for a in self.get_scroll(url, page=page, page_size=page_size, format=format, columns=columns, **options):
             yield a

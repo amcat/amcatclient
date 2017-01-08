@@ -19,6 +19,7 @@
 from __future__ import unicode_literals, print_function, absolute_import
 
 from typing import Iterable
+from itertools import islice
 
 """
 Utility module for accessing the AmCAT API.
@@ -214,6 +215,7 @@ class AmcatAPI(object):
     def get_scroll(self, url, page_size=100, **filters):
         n = 0
         options = dict(page_size=page_size, **filters)
+        format = filters.get('format')
         while True:
             r = self.request(url, use_xpost=False, **options)
             n += len(r['results'])
@@ -224,6 +226,7 @@ class AmcatAPI(object):
                 break
             url = r['next']
             options = {'format': None}
+
             
     def aggregate(self, **filters):
         """Conduct an aggregate query"""
@@ -293,10 +296,17 @@ class AmcatAPI(object):
 
 
     def get_articles_by_id(self, articles: Iterable[int] = None, format='json',
-                     columns=['date', 'headline', 'medium'], page_size=1000, page=1, **options):
+                     columns=['date', 'headline', 'medium'], page_size=100, **options):
         url = URL.meta.format(**locals())
-        options['id'] = articles
-        return self.get_scroll(url, page=page, page_size=page_size, format=format, columns=columns, **options)
+        # we cannot use POST here, so need to limit number of ids per request
+        it = iter(articles)
+        while True:
+            ids = list(islice(it, page_size))
+            if not ids:
+                break
+            options['id'] = ids
+            for a in self.get_scroll(url, page_size=page_size, format=format, columns=columns, **options):
+                yield a
 
 
 def search(self, articleset, query, columns=['hits'], minimal=True, **filters):

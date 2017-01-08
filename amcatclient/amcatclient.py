@@ -18,6 +18,8 @@
 ###########################################################################
 from __future__ import unicode_literals, print_function, absolute_import
 
+from typing import Iterable
+
 """
 Utility module for accessing the AmCAT API.
 
@@ -58,8 +60,9 @@ class URL:
     get_token = 'get_token'
     media = 'medium'
     aggregate = 'aggregate'
-    meta = articleset + "meta"
-    
+    projectmeta = articleset + "meta"
+    meta = "meta"
+
 AUTH_FILE = os.path.join("~", ".amcatauth")
 
 
@@ -202,7 +205,7 @@ class AmcatAPI(object):
     def get_pages(self, url, page=1, page_size=100, **filters):
         for page in itertools.count(page):
             r = self.request(url, page=page, page_size=page_size, **filters)
-            log.warning("Got {url} page {page} / {pages}".format(url=url, **r))
+            log.debug("Got {url} page {page} / {pages}".format(url=url, **r))
             for row in r['results']:
                 yield row
             if r['next'] is None:
@@ -214,7 +217,7 @@ class AmcatAPI(object):
         while True:
             r = self.request(url, use_xpost=False, **options)
             n += len(r['results'])
-            log.warning("Got {} {n}/{total}".format(url.split("?")[0], total=r['total'], **locals()))
+            log.debug("Got {} {n}/{total}".format(url.split("?")[0], total=r['total'], **locals()))
             for row in r['results']:
                 yield row
             if r['next'] is None:
@@ -283,12 +286,20 @@ class AmcatAPI(object):
             headers = {'content-type': 'application/json'}
             return self.request(url, method='post', data=json_data, headers=headers)
 
-    def get_articles(self, project, articleset, format='json', columns=['date', 'headline', 'medium'], page_size=1000, page=1, **options):
-        url = URL.meta.format(**locals())
-        for a in self.get_scroll(url, page=page, page_size=page_size, format=format, columns=columns, **options):
-            yield a
+    def get_articles(self, project:int, articleset:int=None, format='json',
+                     columns=['date', 'headline', 'medium'], page_size=1000, page=1, **options):
+        url = URL.projectmeta.format(**locals())
+        return self.get_scroll(url, page=page, page_size=page_size, format=format, columns=columns, **options)
 
-    def search(self, articleset, query, columns=['hits'], minimal=True, **filters):
+
+    def get_articles_by_id(self, articles: Iterable[int] = None, format='json',
+                     columns=['date', 'headline', 'medium'], page_size=1000, page=1, **options):
+        url = URL.meta.format(**locals())
+        options['id'] = articles
+        return self.get_scroll(url, page=page, page_size=page_size, format=format, columns=columns, **options)
+
+
+def search(self, articleset, query, columns=['hits'], minimal=True, **filters):
         return self.get_pages(URL.search, q=query, col=columns, minimal=minimal, sets=articleset, **filters)
 
 if __name__ == '__main__':

@@ -211,15 +211,18 @@ class AmcatAPI(object):
             if r['next'] is None:
                 break
 
-    def get_scroll(self, url, page_size=100, **filters):
+    def get_scroll(self, url, page_size=100, yield_pages=False, **filters):
         n = 0
         options = dict(page_size=page_size, **filters)
         while True:
             r = self.request(url, use_xpost=False, **options)
             n += len(r['results'])
             log.debug("Got {} {n}/{total}".format(url.split("?")[0], total=r['total'], **locals()))
-            for row in r['results']:
-                yield row
+            if yield_pages:
+                yield r['results']
+            else:
+                for row in r['results']:
+                    yield row
             if r['next'] is None:
                 break
             url = r['next']

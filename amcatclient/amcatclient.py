@@ -219,7 +219,8 @@ class AmcatAPI(object):
             n += len(r['results'])
             log.debug("Got {} {n}/{total}".format(url.split("?")[0], total=r['total'], **locals()))
             if yield_pages:
-                yield r['results']
+                if r['results']:
+                    yield r['results']
             else:
                 for row in r['results']:
                     yield row
@@ -227,7 +228,7 @@ class AmcatAPI(object):
                 break
             url = r['next']
             options = {'format': None}
-            
+
     def aggregate(self, **filters):
         """Conduct an aggregate query"""
         url = URL.aggregate.format(**locals())

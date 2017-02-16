@@ -4,7 +4,7 @@ from distutils.core import setup
 
 setup(
     name="amcatclient",
-    version='3.4.3',
+    version='3.4.5',
     description="Python bindings for the AmCAT API",
     author="Wouter van Atteveldt",
     author_email="wouter@vanatteveldt.com",

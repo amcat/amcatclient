@@ -302,6 +302,11 @@ class AmcatAPI(object):
         options['id'] = articles
         return self.get_scroll(url, page=page, page_size=page_size, format=format, columns=columns, **options)
 
+    def get_articles_by_uuid(self, articles: Iterable[str] = None, format='json',
+                     columns=['date', 'headline', 'medium'], page_size=1000, page=1, **options):
+        url = URL.meta.format(**locals())
+        options['uuid'] = articles
+        return self.get_scroll(url, page=page, page_size=page_size, format=format, columns=columns, **options)
 
 def search(self, articleset, query, columns=['hits'], minimal=True, **filters):
         return self.get_pages(URL.search, q=query, col=columns, minimal=minimal, sets=articleset, **filters)

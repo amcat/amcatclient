@@ -221,7 +221,8 @@ class AmcatAPI(object):
             n += len(r['results'])
             log.debug("Got {} {n}/{total}".format(url.split("?")[0], total=r['total'], **locals()))
             if yield_pages:
-                yield r['results']
+                if r['results']:
+                    yield r['results']
             else:
                 for row in r['results']:
                     yield row
@@ -230,7 +231,6 @@ class AmcatAPI(object):
             url = r['next']
             options = {'format': None}
 
-            
     def aggregate(self, **filters):
         """Conduct an aggregate query"""
         url = URL.aggregate.format(**locals())
@@ -311,6 +311,11 @@ class AmcatAPI(object):
             for a in self.get_scroll(url, page_size=page_size, format=format, columns=columns, **options):
                 yield a
 
+    def get_articles_by_uuid(self, articles: Iterable[str] = None, format='json',
+                     columns=['date', 'headline', 'medium'], page_size=1000, page=1, **options):
+        url = URL.meta.format(**locals())
+        options['uuid'] = articles
+        return self.get_scroll(url, page=page, page_size=page_size, format=format, columns=columns, **options)
 
 def search(self, articleset, query, columns=['hits'], minimal=True, **filters):
         return self.get_pages(URL.search, q=query, col=columns, minimal=minimal, sets=articleset, **filters)

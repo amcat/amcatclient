@@ -62,6 +62,7 @@ class URL:
     aggregate = 'aggregate'
     projectmeta = articleset + "meta"
     meta = "meta"
+    status = 'status'
 
 AUTH_FILE = os.path.join("~", ".amcatauth")
 
@@ -228,7 +229,12 @@ class AmcatAPI(object):
                 break
             url = r['next']
             options = {'format': None}
-
+            
+    def get_status(self):
+        """Get the AmCAT status page"""
+        url = URL.status.format(**locals())
+        return self.get_request(url)
+    
     def aggregate(self, **filters):
         """Conduct an aggregate query"""
         url = URL.aggregate.format(**locals())

@@ -4,7 +4,7 @@ from distutils.core import setup
 
 setup(
     name="amcatclient",
-    version='3.4.7',
+    version='3.4.8',
     description="Python bindings for the AmCAT API",
     author="Wouter van Atteveldt",
     author_email="wouter@vanatteveldt.com",
@@ -18,7 +18,7 @@ setup(
         "Topic :: Text Processing",
     ],
     install_requires=[
-        "requests==2.9.1",
+        "requests",
         "six==1.10.0"
     ],
 )

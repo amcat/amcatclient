@@ -66,6 +66,9 @@ class URL:
 
 AUTH_FILE = os.path.join("~", ".amcatauth")
 
+class StopExecution(Exception):
+    """ An exception to stop execution of a command (e.g. from callback). """
+    pass
 
 class APIError(EnvironmentError):
 
@@ -162,7 +165,8 @@ class AmcatAPI(object):
             user, password = self._get_auth()
         url = "{self.host}/api/v4/{url}".format(url=URL.get_token, **locals())
         r = requests.post(url, data={'username': user, 'password': password})
-        return check(r)['token']
+        r.raise_for_status()
+        return r.json()['token']
 
     def request(self, url, method="get", format="json", data=None,
                 expected_status=None, headers=None, use_xpost=True, **options):
@@ -185,6 +189,8 @@ class AmcatAPI(object):
             options = dict({'format': format}, **options)
         options = {field: value for field, value in options.items() if value is not None}
         headers = dict(headers or {}, Authorization="Token {}".format(self.token))
+        #headers['Accept-encoding'] = 'gzip'
+
         if method == "get" and use_xpost:
             # If method is purely GET, we can use X-HTTP-METHOD-OVERRIDE to send our
             # query via POST. This allows for a large number of parameters to be supplied
@@ -203,21 +209,55 @@ class AmcatAPI(object):
         )
         return check(r, expected_status=expected_status)
 
-    def get_pages(self, url, page=1, page_size=100, **filters):
+
+
+    def get_pages(self, url, page=1, page_size=100, callback=None, **filters):
+        """
+        Get all pages at url, yielding individual results
+        :param url: the url to fetch
+        :param page: start from this page
+        :param page_size: results per page
+        :param callback: if given, will be called after each page.
+            Should be a function(n, total), which may raise a StopExecution to break the request
+        :param filters: additional filters
+        :return: a generator of objects (dicts) from the API
+        """
+        n = 0
         for page in itertools.count(page):
             r = self.request(url, page=page, page_size=page_size, **filters)
+            n += len(r['results'])
+            if callback is not None:
+                try:
+                    callback(n, r['total'])
+                except StopExecution:
+                    break
             log.debug("Got {url} page {page} / {pages}".format(url=url, **r))
             for row in r['results']:
                 yield row
             if r['next'] is None:
                 break
 
-    def get_scroll(self, url, page_size=100, yield_pages=False, **filters):
+    def get_scroll(self, url, page_size=100, yield_pages=False, callback=None, **filters):
+        """
+        Scroll through the resource at url and yield the individual results
+        :param url: url to scroll through
+        :param page_size: results per page
+        :param yield_pages: yield whole pages rather than individual results
+        :param callback: if given, will be called after each page.
+            Should be a function(n, total), which may raise a StopExecution to break the request
+        :param filters: Additional filters
+        :return: a generator of objects (dicts) from the API
+        """
         n = 0
         options = dict(page_size=page_size, **filters)
         while True:
             r = self.request(url, use_xpost=False, **options)
             n += len(r['results'])
+            if callback is not None:
+                try:
+                    callback(n, r['total'])
+                except StopExecution:
+                    break
             log.debug("Got {} {n}/{total}".format(url.split("?")[0], total=r['total'], **locals()))
             if yield_pages:
                 if r['results']:
@@ -297,9 +337,10 @@ class AmcatAPI(object):
             return self.request(url, method='post', data=json_data, headers=headers)
 
     def get_articles(self, project:int, articleset:int=None, format='json',
-                     columns=['date', 'headline', 'medium'], page_size=1000, page=1, **options):
+                     columns=['date', 'headline', 'medium'], page_size=1000, page=1, callback=None, **options):
         url = URL.projectmeta.format(**locals())
-        return self.get_scroll(url, page=page, page_size=page_size, format=format, columns=columns, **options)
+        return self.get_scroll(url, page=page, page_size=page_size, format=format, columns=",".join(columns),
+                               callback=callback, **options)
 
 
     def get_articles_by_id(self, articles: Iterable[int] = None, format='json',
@@ -314,8 +355,9 @@ class AmcatAPI(object):
         options['uuid'] = articles
         return self.get_scroll(url, page=page, page_size=page_size, format=format, columns=columns, **options)
 
-def search(self, articleset, query, columns=['hits'], minimal=True, **filters):
-        return self.get_pages(URL.search, q=query, col=columns, minimal=minimal, sets=articleset, **filters)
+    def search(self, articleset, query, columns=['hits'], minimal=True, callback=None, **filters):
+        return self.get_pages(URL.search, q=query, col=columns, minimal=minimal, sets=articleset, callback=callback,
+                              **filters)
 
 if __name__ == '__main__':
     import argparse

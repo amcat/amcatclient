@@ -84,7 +84,14 @@ class APIError(EnvironmentError):
         return "{parent}: {description}; {details}".format(
             parent=super(APIError, self).__str__(), **self.__dict__
         )
-    
+
+class Unauthorized(APIError):
+    pass
+
+def _APIError(http_status, *args, **kargs):
+    cls = Unauthorized if http_status == 401 else APIError
+    return cls(http_status, *args, **kargs)
+
         
 def check(response, expected_status=200, url=None):
     """
@@ -104,7 +111,7 @@ def check(response, expected_status=200, url=None):
             err = {} # force generic error
 
         if all(x in err for x in ("status", "message", "description", "details")):
-            raise APIError(err["status"], err['message'], url,
+            raise _APIError(err["status"], err['message'], url,
                            err, err["description"], err["details"])
         else: # generic error
             suffix = ".html" if "<html" in response.text else ".txt"
@@ -114,7 +121,7 @@ def check(response, expected_status=200, url=None):
             msg = ("Request {url!r} returned code {response.status_code},"
                    " expected {expected_status}. Response written to {f.name}"
                    .format(**locals()))
-            raise APIError(response.status_code, msg, url, response.text)
+            raise _APIError(response.status_code, msg, url, response.text)
     if response.headers.get('Content-Type') == 'application/json':
         try:
             return response.json()
@@ -129,9 +136,11 @@ class AmcatAPI(object):
 
     def __init__(self, host, user=None, password=None, token=None):
         self.host = host
-        if token is None:
-            token = self.get_token(user, password)
-        self.token = token
+        if token:
+            self.token = token
+            self.renew_token()
+        else:
+            self.token = self.get_token(user, password)
 
     def _get_auth(self, user=None, password=None):
         """
@@ -159,6 +168,10 @@ class AmcatAPI(object):
                             "from {fn} or AMCAT_USER / AMCAT_PASSWORD "
                             "variables".format(**locals()))
         return user, password
+
+    def renew_token(self):
+        self.token = self.request(URL.get_token, method='post', expected_status=200)['token']
+
 
     def get_token(self, user=None, password=None):
         if user is None or password is None:

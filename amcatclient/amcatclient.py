@@ -47,7 +47,7 @@ log = logging.getLogger(__name__)
 def serialize(obj):
     """JSON serializer that accepts datetime & date"""
     from datetime import datetime, date, time
-    if isinstance(obj, date):
+    if isinstance(obj, date) and not isinstance(obj, datetime):
         obj = datetime.combine(obj, time.min)
     if isinstance(obj, datetime):
         return obj.isoformat()
@@ -63,9 +63,9 @@ class URL:
     aggregate = 'aggregate'
     projectmeta = articleset + "meta"
     meta = "meta"
+    status = 'status'
 
 AUTH_FILE = os.path.join("~", ".amcatauth")
-
 
 class APIError(EnvironmentError):
 
@@ -81,7 +81,14 @@ class APIError(EnvironmentError):
         return "{parent}: {description}; {details}".format(
             parent=super(APIError, self).__str__(), **self.__dict__
         )
-    
+
+class Unauthorized(APIError):
+    pass
+
+def _APIError(http_status, *args, **kargs):
+    cls = Unauthorized if http_status == 401 else APIError
+    return cls(http_status, *args, **kargs)
+
         
 def check(response, expected_status=200, url=None):
     """
@@ -101,7 +108,7 @@ def check(response, expected_status=200, url=None):
             err = {} # force generic error
 
         if all(x in err for x in ("status", "message", "description", "details")):
-            raise APIError(err["status"], err['message'], url,
+            raise _APIError(err["status"], err['message'], url,
                            err, err["description"], err["details"])
         else: # generic error
             suffix = ".html" if "<html" in response.text else ".txt"
@@ -111,7 +118,7 @@ def check(response, expected_status=200, url=None):
             msg = ("Request {url!r} returned code {response.status_code},"
                    " expected {expected_status}. Response written to {f.name}"
                    .format(**locals()))
-            raise APIError(response.status_code, msg, url, response.text)
+            raise _APIError(response.status_code, msg, url, response.text)
     if response.headers.get('Content-Type') == 'application/json':
         try:
             return response.json()
@@ -126,9 +133,11 @@ class AmcatAPI(object):
 
     def __init__(self, host, user=None, password=None, token=None):
         self.host = host
-        if token is None:
-            token = self.get_token(user, password)
-        self.token = token
+        if token:
+            self.token = token
+            self.renew_token()
+        else:
+            self.token = self.get_token(user, password)
 
     def _get_auth(self, user=None, password=None):
         """
@@ -157,12 +166,17 @@ class AmcatAPI(object):
                             "variables".format(**locals()))
         return user, password
 
+    def renew_token(self):
+        self.token = self.request(URL.get_token, method='post', expected_status=200)['token']
+
+
     def get_token(self, user=None, password=None):
         if user is None or password is None:
             user, password = self._get_auth()
         url = "{self.host}/api/v4/{url}".format(url=URL.get_token, **locals())
         r = requests.post(url, data={'username': user, 'password': password})
-        return check(r)['token']
+        r.raise_for_status()
+        return r.json()['token']
 
     def request(self, url, method="get", format="json", data=None,
                 expected_status=None, headers=None, use_xpost=True, **options):
@@ -185,6 +199,8 @@ class AmcatAPI(object):
             options = dict({'format': format}, **options)
         options = {field: value for field, value in options.items() if value is not None}
         headers = dict(headers or {}, Authorization="Token {}".format(self.token))
+        #headers['Accept-encoding'] = 'gzip'
+
         if method == "get" and use_xpost:
             # If method is purely GET, we can use X-HTTP-METHOD-OVERRIDE to send our
             # query via POST. This allows for a large number of parameters to be supplied
@@ -203,16 +219,40 @@ class AmcatAPI(object):
         )
         return check(r, expected_status=expected_status)
 
-    def get_pages(self, url, page=1, page_size=100, **filters):
+
+
+    def get_pages(self, url, page=1, page_size=100, yield_pages=False, **filters):
+        """
+        Get all pages at url, yielding individual results
+        :param url: the url to fetch
+        :param page: start from this page
+        :param page_size: results per page
+        :param yield_pages: yield whole pages rather than individual results
+        :param filters: additional filters
+        :return: a generator of objects (dicts) from the API
+        """
+        n = 0
         for page in itertools.count(page):
             r = self.request(url, page=page, page_size=page_size, **filters)
+            n += len(r['results'])
             log.debug("Got {url} page {page} / {pages}".format(url=url, **r))
-            for row in r['results']:
-                yield row
+            if yield_pages:
+                yield r
+            else:
+                for row in r['results']:
+                    yield row
             if r['next'] is None:
                 break
 
     def get_scroll(self, url, page_size=100, yield_pages=False, **filters):
+        """
+        Scroll through the resource at url and yield the individual results
+        :param url: url to scroll through
+        :param page_size: results per page
+        :param yield_pages: yield whole pages rather than individual results
+        :param filters: Additional filters
+        :return: a generator of objects (dicts) from the API
+        """
         n = 0
         options = dict(page_size=page_size, **filters)
         format = filters.get('format')
@@ -221,8 +261,7 @@ class AmcatAPI(object):
             n += len(r['results'])
             log.debug("Got {} {n}/{total}".format(url.split("?")[0], total=r['total'], **locals()))
             if yield_pages:
-                if r['results']:
-                    yield r['results']
+                yield r
             else:
                 for row in r['results']:
                     yield row
@@ -230,7 +269,12 @@ class AmcatAPI(object):
                 break
             url = r['next']
             options = {'format': None}
-
+            
+    def get_status(self):
+        """Get the AmCAT status page"""
+        url = URL.status.format(**locals())
+        return self.get_request(url)
+    
     def aggregate(self, **filters):
         """Conduct an aggregate query"""
         url = URL.aggregate.format(**locals())
@@ -295,7 +339,7 @@ class AmcatAPI(object):
     def get_articles(self, project:int, articleset:int=None, format='json',
                      columns=['date', 'headline', 'medium'], page_size=1000, page=1, **options):
         url = URL.projectmeta.format(**locals())
-        return self.get_scroll(url, page=page, page_size=page_size, format=format, columns=columns, **options)
+        return self.get_scroll(url, page=page, page_size=page_size, format=format, columns=",".join(columns), **options)
 
 
     def get_articles_by_id(self, articles: Iterable[int] = None, format='json',
@@ -317,7 +361,7 @@ class AmcatAPI(object):
         options['uuid'] = articles
         return self.get_scroll(url, page=page, page_size=page_size, format=format, columns=columns, **options)
 
-def search(self, articleset, query, columns=['hits'], minimal=True, **filters):
+    def search(self, articleset, query, columns=['hits'], minimal=True, **filters):
         return self.get_pages(URL.search, q=query, col=columns, minimal=minimal, sets=articleset, **filters)
 
 if __name__ == '__main__':

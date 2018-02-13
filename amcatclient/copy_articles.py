@@ -69,9 +69,10 @@ def copy_articles(src_api, src_project, src_set,
                      .format(n=len(batch), **locals()))
 
         def convert(a):
-            a = {k: v for (k, v) in a.items() if k in ART_ARGS}
-            if not a['text']: a['text'] = "-"
-            if not a['headline']: a['headline']="-"
+            a = {k: v for (k, v) in a.items() if k in ART_ARGS and v}
+            if not a.get('text'): a['text'] = "-"
+            if not a.get('headline'): a['headline']="-"
+            a['title'] = a.pop('headline')
             return a
         batch = [convert(a) for a in batch]
 

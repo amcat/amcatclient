@@ -18,9 +18,7 @@
 ###########################################################################
 from __future__ import unicode_literals, print_function, absolute_import
 
-from typing import Iterable
 from itertools import islice
-
 """
 Utility module for accessing the AmCAT API.
 
@@ -29,6 +27,7 @@ this file into your project. For that reason, this module is also licensed
 under the GNU Lesser GPL rather than the Affero GPL, so feel free to use it
 in non-GPL programs.
 """
+
 
 import requests
 import json
@@ -336,13 +335,12 @@ class AmcatAPI(object):
             headers = {'content-type': 'application/json'}
             return self.request(url, method='post', data=json_data, headers=headers)
 
-    def get_articles(self, project:int, articleset:int=None, format='json',
+    def get_articles(self, project, articleset=None, format='json',
                      columns=['date', 'headline', 'medium'], page_size=1000, page=1, **options):
         url = URL.projectmeta.format(**locals())
         return self.get_scroll(url, page=page, page_size=page_size, format=format, columns=",".join(columns), **options)
 
-
-    def get_articles_by_id(self, articles: Iterable[int] = None, format='json',
+    def get_articles_by_id(self, articles=None, format='json',
                      columns=['date', 'headline', 'medium'], page_size=100, **options):
         url = URL.meta.format(**locals())
         # we cannot use POST here, so need to limit number of ids per request
@@ -355,7 +353,7 @@ class AmcatAPI(object):
             for a in self.get_scroll(url, page_size=page_size, format=format, columns=columns, **options):
                 yield a
 
-    def get_articles_by_uuid(self, articles: Iterable[str] = None, format='json',
+    def get_articles_by_uuid(self, articles=None, format='json',
                      columns=['date', 'headline', 'medium'], page_size=1000, page=1, **options):
         url = URL.meta.format(**locals())
         options['uuid'] = articles

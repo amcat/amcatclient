@@ -28,7 +28,7 @@ under the GNU Lesser GPL rather than the Affero GPL, so feel free to use it
 in non-GPL programs.
 """
 
-
+import re
 import requests
 import json
 import logging
@@ -111,12 +111,14 @@ def check(response, expected_status=200, url=None):
                            err, err["description"], err["details"])
         else: # generic error
             suffix = ".html" if "<html" in response.text else ".txt"
-            with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as f:
-                f.write(response.text.encode("utf-8"))
+            msg = response.text
+            if len(msg) > 200:
+                with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as f:
+                    f.write(response.text.encode("utf-8"))
+                msg = "{}...\n\n[snipped; full response written to {f.name}".format(msg[:100], **locals())
                 
             msg = ("Request {url!r} returned code {response.status_code},"
-                   " expected {expected_status}. Response written to {f.name}"
-                   .format(**locals()))
+                   " expected {expected_status}. \n{msg}".format(**locals()))
             raise _APIError(response.status_code, msg, url, response.text)
     if response.headers.get('Content-Type') == 'application/json':
         try:
@@ -131,12 +133,33 @@ def check(response, expected_status=200, url=None):
 class AmcatAPI(object):
 
     def __init__(self, host, user=None, password=None, token=None):
+        """
+        Connection to an AmCAT server.
+
+        :param host: AmCAT server address, including http(s)://
+        :param user: Username. If not given, taken from AMCAT_USER or USER environment
+        :param password: Password. If not given, taken from AMCAT_PASSWORD environment, or read from ~/.amcatauth
+        :param token: Token to use (requires amcat >= 3.5)
+        """
         self.host = host
         if token:
-            self.token = token
-            self.renew_token()
-        else:
-            self.token = self.get_token(user, password)
+            try:
+                self.token, self.version = self.renew_token(token)
+            except APIError as e:
+                logging.warning("Cannot renew token (requires amcat>3.5), trying normal authentication: {e}"
+                                .format(**locals()))
+                token = None
+        if token is None:
+            self.token, self.version = self.get_token(user, password)
+        logging.info("Connected to {self.host} (AmCAT version {self.version})".format(**locals()))
+
+    def has_version(self, major=3, minor=None):
+        m = re.match(r"(\d+)\.(\d+)(.*)", self.version)
+        if not m:
+            raise Exception("Cannot parse version string: {self.version}".format(**locals()))
+        if int(m.group(1)) < major:
+            return False
+        return (minor is None) or (int(m.group(2)) >= minor)
 
     def _get_auth(self, user=None, password=None):
         """
@@ -165,9 +188,10 @@ class AmcatAPI(object):
                             "variables".format(**locals()))
         return user, password
 
-    def renew_token(self):
-        self.token = self.request(URL.get_token, method='post', expected_status=200)['token']
-
+    def renew_token(self, token):
+        self.token = token
+        resp = self.request(URL.get_token, method='post', expected_status=200)
+        return resp['token'], r['version']
 
     def get_token(self, user=None, password=None):
         if user is None or password is None:
@@ -175,7 +199,8 @@ class AmcatAPI(object):
         url = "{self.host}/api/v4/{url}".format(url=URL.get_token, **locals())
         r = requests.post(url, data={'username': user, 'password': password})
         r.raise_for_status()
-        return r.json()['token']
+        r = r.json()
+        return r['token'], r.get('version', '3.3 (or older)')
 
     def request(self, url, method="get", format="json", data=None,
                 expected_status=None, headers=None, use_xpost=True, **options):
@@ -337,8 +362,11 @@ class AmcatAPI(object):
 
     def get_articles(self, project, articleset=None, format='json',
                      columns=['date', 'headline', 'medium'], page_size=1000, page=1, **options):
-        url = URL.projectmeta.format(**locals())
-        return self.get_scroll(url, page=page, page_size=page_size, format=format, columns=",".join(columns), **options)
+        if self.has_version(3, 4):
+            url = URL.projectmeta.format(**locals())
+            return self.get_scroll(url, page=page, page_size=page_size, format=format, columns=",".join(columns), **options)
+        else:
+            return self.list_articles(project, articleset, page, page_size=page_size, **options)
 
     def get_articles_by_id(self, articles=None, format='json',
                      columns=['date', 'headline', 'medium'], page_size=100, **options):

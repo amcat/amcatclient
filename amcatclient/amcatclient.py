@@ -191,7 +191,7 @@ class AmcatAPI(object):
     def renew_token(self, token):
         self.token = token
         resp = self.request(URL.get_token, method='post', expected_status=200)
-        return resp['token'], r['version']
+        return resp['token'], resp['version']
 
     def get_token(self, user=None, password=None):
         if user is None or password is None:

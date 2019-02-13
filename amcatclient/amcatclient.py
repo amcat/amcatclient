@@ -18,6 +18,7 @@
 ###########################################################################
 from __future__ import unicode_literals, print_function, absolute_import
 
+from collections import namedtuple
 from itertools import islice
 """
 Utility module for accessing the AmCAT API.
@@ -42,6 +43,7 @@ from six import string_types
 
 log = logging.getLogger(__name__)
 
+Version = namedtuple("Version", ["major", "minor", "build"])
 
 def serialize(obj):
     """JSON serializer that accepts datetime & date"""
@@ -154,12 +156,16 @@ class AmcatAPI(object):
         logging.info("Connected to {self.host} (AmCAT version {self.version})".format(**locals()))
 
     def has_version(self, major=3, minor=None):
+        v = self.get_version()
+        if v.major < major:
+            return False
+        return (minor is None) or (v.minor >= minor)
+
+    def get_version(self):
         m = re.match(r"(\d+)\.(\d+)(.*)", self.version)
         if not m:
             raise Exception("Cannot parse version string: {self.version}".format(**locals()))
-        if int(m.group(1)) < major:
-            return False
-        return (minor is None) or (int(m.group(2)) >= minor)
+        return Version(int(m.group(1)), int(m.group(2)), m.group(3))
 
     def _get_auth(self, user=None, password=None):
         """

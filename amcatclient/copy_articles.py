@@ -57,9 +57,20 @@ def create_set(src_api, src_project, src_set, trg_api, trg_project):
 def copy_articles(src_api, src_project, src_set,
                   trg_api, trg_project, trg_set=None,
                   batch_size=100, from_page=1):
+
+    srcv = src_api.get_version()
+    trgv = trg_api.get_version()
+
+    if not (srcv.major == 3 and trgv.major == 3 and srcv.minor in (4,5) and trgv.minor in (4,5)):
+        raise Exception("copy_articles only possible between versions 3.4 and 3.5")
+
     if trg_set is None:
         trg_set = create_set(src_api, src_project, src_set, trg_api, trg_project)
-    articles = src_api.list_articles(src_project, src_set, page=from_page, page_size=batch_size, order_by="parent", text=True)
+    if srcv.minor == 5:
+        kargs = {}
+    else:
+        kargs = dict(order_by='parent')
+    articles = src_api.list_articles(src_project, src_set, page=from_page, page_size=batch_size, text=True, **kargs)
     for i in itertools.count(from_page):
         batch = list(itertools.islice(articles, batch_size))
         if not batch:
@@ -71,8 +82,16 @@ def copy_articles(src_api, src_project, src_set,
         def convert(a):
             a = {k: v for (k, v) in a.items() if k in ART_ARGS and v}
             if not a.get('text'): a['text'] = "-"
-            if not a.get('headline'): a['headline']="-"
-            a['title'] = a.pop('headline')
+            # someone decided to rename headline to title in 3.5, so check and rename as needed
+            title = a.pop('headline', '-') if srcv.minor == 4 else a.pop("title", '-')
+            medium = a.pop('medium', None) if srcv.minor == 4 else a.pop("publisher", None)
+            if trgv.minor == 5:
+                a['title'] = title
+                if medium:
+                    a['publisher'] = medium
+            if trgv.minor == 4:
+                a['headline'] = title
+                a['medium'] = medium or "-"
             return a
         batch = [convert(a) for a in batch]
 

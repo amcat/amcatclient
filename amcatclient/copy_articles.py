@@ -33,9 +33,9 @@ from amcatclient import AmcatAPI
 
 
 SET_ARGS = ["name", "provenance"]
-ART_ARGS = ["metastring", "byline", "uuid", "author", "headline", "text",
-            "section", "url", "length", "addressee", "externalid",
-            "insertdate", "date", "pagenr", "medium", "parent"]
+ART_ARGS = ["metastring", "byline", "uuid", "author", "headline","title", "text",
+            "section", "url", "length", "addressee", "externalid","insertdate",
+            "date", "pagenr", "medium","publisher", "parent"]
 
 
 def create_set(src_api, src_project, src_set, trg_api, trg_project):
@@ -80,6 +80,8 @@ def copy_articles(src_api, src_project, src_set,
                      .format(n=len(batch), **locals()))
 
         def convert(a):
+            if srcv.minor == 5 and 'properties' in a:
+                a.update(a.pop('properties'))
             a = {k: v for (k, v) in a.items() if k in ART_ARGS and v}
             if not a.get('text'): a['text'] = "-"
             # someone decided to rename headline to title in 3.5, so check and rename as needed

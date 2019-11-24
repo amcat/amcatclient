@@ -103,6 +103,7 @@ def check(response, expected_status=200, url=None):
         if url is None:
             url = response.url
 
+
         try:
             err = response.json()
         except:
@@ -204,7 +205,11 @@ class AmcatAPI(object):
             user, password = self._get_auth()
         url = "{self.host}/api/v4/{url}".format(url=URL.get_token, **locals())
         r = requests.post(url, data={'username': user, 'password': password})
-        r.raise_for_status()
+        try:
+            r.raise_for_status()
+        except:
+            log.error(f"Error on getting token:\n\n{r.content}\n\n")
+            raise
         r = r.json()
         return r['token'], r.get('version', '3.3 (or older)')
 
@@ -225,6 +230,7 @@ class AmcatAPI(object):
 
         if not url.startswith("http"):
             url = "{self.host}/api/v4/{url}".format(**locals())
+
         if format is not None:
             options = dict({'format': format}, **options)
         options = {field: value for field, value in options.items() if value is not None}

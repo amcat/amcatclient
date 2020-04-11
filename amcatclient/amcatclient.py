@@ -373,12 +373,13 @@ class AmcatAPI(object):
             return self.request(url, method='post', data=json_data, headers=headers)
 
     def get_articles(self, project, articleset=None, format='json',
-                     columns=['date', 'headline', 'medium'], page_size=1000, page=1, **options):
+                     columns=['date', 'headline', 'medium'], page_size=1000, page=1, **filters):
         if self.has_version(3, 4):
             url = URL.projectmeta.format(**locals())
-            return self.get_scroll(url, page=page, page_size=page_size, format=format, columns=",".join(columns), **options)
+            return self.get_scroll(url, page=page, page_size=page_size, format=format, columns=",".join(columns),
+                                   filters=json.dumps(filters))
         else:
-            return self.list_articles(project, articleset, page, page_size=page_size, **options)
+            return self.list_articles(project, articleset, page, page_size=page_size, **filters)
 
     def get_articles_by_id(self, articles=None, format='json',
                      columns=['date', 'headline', 'medium'], page_size=100, **options):

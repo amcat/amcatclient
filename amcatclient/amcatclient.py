@@ -352,14 +352,24 @@ class AmcatAPI(object):
             return self.request(
                 url, method='post', data=json_data, headers=headers)
 
-    def create_articles(self, project, articleset, json_data=None, **options):
+    def create_articles(self, project, articleset, json_data=None, batch_size=100, **options):
         """
         Create one or more articles in the set. Provide the needed arguments
-        using the json_data or with key-value pairs
+        using the json_data or with key-value pairs.
+        If json_data is a list, it will be split into batch_size chunks and uploaded per chunk
         @param json_data: A dictionary or list of dictionaries. Each dict
                           can contain a 'children' attribute which
                           is another list of dictionaries.
+        @param batch_size: Upload batch size. Set to None to disable batching
         """
+        if isinstance(json_data, dict) or batch_size is None:
+            self._create_articles(project, articleset, json_data, **options)
+        else:
+            for chunk in get_chunks(json_data, batch_size):
+                logging.info(f"Uploading {len(chunk)} articles to AmCAT")
+                self._create_articles(project, articleset, chunk, **options)
+
+    def _create_articles(self, project, articleset, json_data=None, **options):
         url = URL.article.format(**locals())
         # TODO duplicated from create_set, move into requests
         # (or separate post method?)
@@ -402,6 +412,19 @@ class AmcatAPI(object):
 
     def search(self, articleset, query, columns=['hits'], minimal=True, **filters):
         return self.get_pages(URL.search, q=query, col=columns, minimal=minimal, sets=articleset, **filters)
+
+
+def get_chunks(sequence, batch_size):
+    # TODO can be made more efficient by not creating a new list every time
+    buffer = []
+    for a in sequence:
+        buffer.append(a)
+        if len(buffer) >= batch_size:
+            yield buffer
+            buffer = []
+    if buffer:
+        yield buffer
+
 
 if __name__ == '__main__':
     import argparse

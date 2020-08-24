@@ -52,6 +52,8 @@ def serialize(obj):
         obj = datetime.combine(obj, time.min)
     if isinstance(obj, datetime):
         return obj.isoformat()
+    if isinstance(obj, set):
+        return sorted(obj)
 
 
 class URL:
@@ -362,12 +364,14 @@ class AmcatAPI(object):
                           is another list of dictionaries.
         @param batch_size: Upload batch size. Set to None to disable batching
         """
-        if isinstance(json_data, dict) or batch_size is None:
-            self._create_articles(project, articleset, json_data, **options)
-        else:
+        if isinstance(json_data, list) and batch_size:
+            result = []
             for chunk in get_chunks(json_data, batch_size):
                 logging.info(f"Uploading {len(chunk)} articles to AmCAT")
-                self._create_articles(project, articleset, chunk, **options)
+                result += self._create_articles(project, articleset, chunk, **options)
+            return result
+        else: # don't chunk single article or json string
+            return self._create_articles(project, articleset, json_data, **options)
 
     def _create_articles(self, project, articleset, json_data=None, **options):
         url = URL.article.format(**locals())

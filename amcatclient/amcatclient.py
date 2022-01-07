@@ -386,8 +386,10 @@ class AmcatAPI(object):
             headers = {'content-type': 'application/json'}
             return self.request(url, method='post', data=json_data, headers=headers)
 
-    def get_articles(self, project, articleset=None, format='json',
+    def get_articles(self, project, articleset=None, format='json', all_columns=False,
                      columns=['date', 'headline', 'medium'], page_size=1000, page=1, **filters):
+        if all_columns:
+            columns = ["__ALL__"]
         if self.has_version(3, 4):
             url = URL.projectmeta.format(**locals())
             return self.get_scroll(url, page=page, page_size=page_size, format=format, columns=",".join(columns),

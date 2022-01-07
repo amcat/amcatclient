@@ -33,10 +33,7 @@ from amcatclient import AmcatAPI
 
 
 SET_ARGS = ["name", "provenance"]
-ART_ARGS = ["metastring", "byline", "uuid", "author", "headline","title", "text",
-            "section", "url", "length", "addressee", "externalid","insertdate",
-            "date", "pagenr", "medium","publisher", "parent"]
-
+IGNORE_ARGS = {"id", "hash", "sets", "parent_hash"}
 
 def create_set(src_api, src_project, src_set, trg_api, trg_project):
     s = src_api.get_set(src_project, src_set)
@@ -70,7 +67,7 @@ def copy_articles(src_api, src_project, src_set,
         kargs = {}
     else:
         kargs = dict(order_by='parent')
-    articles = src_api.list_articles(src_project, src_set, page=from_page, page_size=batch_size, text=True, **kargs)
+    articles = src_api.get_articles(src_project, src_set, page=from_page, page_size=batch_size, all_columns=True, **kargs)
     for i in itertools.count(from_page):
         batch = list(itertools.islice(articles, batch_size))
         if not batch:
@@ -82,7 +79,7 @@ def copy_articles(src_api, src_project, src_set,
         def convert(a):
             if srcv.minor == 5 and 'properties' in a:
                 a.update(a.pop('properties'))
-            a = {k: v for (k, v) in a.items() if k in ART_ARGS and v}
+            a = {k: v for (k, v) in a.items() if v and k not in IGNORE_ARGS}
             if not a.get('text'): a['text'] = "-"
             # someone decided to rename headline to title in 3.5, so check and rename as needed
             title = a.pop('headline', '-') if srcv.minor == 4 else a.pop("title", '-')
@@ -96,8 +93,7 @@ def copy_articles(src_api, src_project, src_set,
                 a['medium'] = medium or "-"
             return a
         batch = [convert(a) for a in batch]
-
-        trg_api.create_articles(trg_project, trg_set, batch)
+        trg_api.create_articles(trg_project, trg_set, batch, batch_size=batch_size)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(epilog=__doc__)
